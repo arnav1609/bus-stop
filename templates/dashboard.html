@@ -1,0 +1,244 @@
+To implement the functionality where the bus list shows buses with their timings within a 10-minute range and only the selected bus is shown moving on the map, we need to make several modifications to the existing code. 
+
+### **Key Changes:**
+1. **Bus Timings**: Add a simulated timing for each bus.
+2. **Filter Buses**: When the user clicks "Show Buses," filter the buses based on the current time and display only those within the next 10 minutes.
+3. **Show Selected Bus**: When a user selects a bus from the dropdown, only that bus will be shown moving on the map.
+
+### **Updated Code**
+
+Here’s the complete code with the required functionality:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mumbai Bus Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(to right, #00c6ff, #0072ff);
+            color: #fff; /* Main text color */
+            text-align: center;
+            padding: 20px;
+        }
+        #container {
+            width: 90%;
+            max-width: 800px;
+            margin: auto;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            color: #0072ff; /* Header color */
+            margin-bottom: 20px;
+        }
+        label {
+            color: #333; /* Label color */
+            font-weight: bold;
+        }
+        #map {
+            height: 500px;
+            width: 100%;
+            margin-top: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.3);
+        }
+        select, input {
+            margin: 10px;
+            padding: 12px;
+            width: 45%;
+            border-radius: 8px;
+            border: 1px solid #0072ff;
+            font-size: 16px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            background: #f0f0f0;
+            color: #333; /* Input text color */
+        }
+        select:focus, input:focus {
+            border-color: #0072ff;
+            box-shadow: 0 0 5px rgba(0, 114, 255, 0.5);
+            outline: none;
+        }
+        button {
+            padding: 12px 25px;
+            margin-top: 10px;
+            background-color: #0072ff;
+            color: white; /* Button text color */
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        button:hover {
+            background-color: #005bb5;
+            transform: translateY(-2px);
+        }
+        #nearest-stops, #bus-list, #bus-select-container {
+            display: none;
+            margin-top: 10px;
+            font-size: 16px;
+            text-align: left;
+            color: #333; /* Text color for bus list and nearest stops */
+        }
+        .bus-info {
+            background: rgba(0, 114, 255, 0.1);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 5px 0;
+            color: #333; /* Text color for bus info */
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>Mumbai Bus Tracking</h1>
+        <label for="user-location">Enter Your Location:</label>
+        <input type="text" id="user-location" placeholder="e.g., Andheri">
+        <button onclick="findNearestStop()">Find Nearest Stop</button>
+        <div id="nearest-stops"></div>
+        <br>
+        <label for="destination">Select Destination:</label>
+        <input type="text" id="destination" placeholder="e.g., Vile Parle">
+        <button onclick="fetchBusData()">Show Buses</button>
+        <div id="bus-list"></div>
+        <div id="bus-select-container">
+            <label for="bus-select">Select Bus:</label>
+            <select id="bus-select" onchange="updateBusSelection()"></select>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        var map = L.map('map').setView([19.1000, 72.8466], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        var busMarkers = {};
+        var stopMarkers = [];
+        var selectedBusId = null;
+
+        var stops = [
+            { name: "Vile Parle", lat: 19.1000, lon: 72.8370 },
+            { name: "Santacruz", lat: 19.0800, lon: 72.8550 },
+            { name: "Andheri", lat: 19.1197, lon: 72.8466 }
+        ];
+
+        stops.forEach(stop => {
+            let marker = L.marker([stop.lat, stop.lon]).addTo(map).bindPopup(`<b>${stop.name}</b>`);
+            stopMarkers.push(marker);
+        });
+
+        // Simulated bus data with a path and timings
+        var busData = [
+            { id: 1, route: "Route A", path: [
+                { lat: 19.1000, lon: 72.8370 },
+                { lat: 19.1050, lon: 72.8400 },
+                { lat: 19.1100, lon: 72.8430 },
+                { lat: 19.1150, lon: 72.8460 },
+                { lat: 19.1197, lon: 72.8466 }
+            ], timings: ["10:00", "10:05", "10:10", "10:15", "10:20"] },
+            { id: 2, route: "Route B", path: [
+                { lat: 19.0800, lon: 72.8550 },
+                { lat: 19.0850, lon: 72.8580 },
+                { lat: 19.0900, lon: 72.8600 },
+                { lat: 19.0950, lon: 72.8620 },
+                { lat: 19.1000, lon: 72.8370 }
+            ], timings: ["10:02", "10:07", "10:12", "10:17", "10:22"] }
+        ];
+
+        // Create bus markers
+        busData.forEach(bus => {
+            let marker = L.marker([bus.path[0].lat, bus.path[0].lon], { icon: L.icon({
+                iconUrl: 'https://img.icons8.com/color/48/000000/bus.png',
+                iconSize: [30, 30]
+            })}).addTo(map).bindPopup(`Bus ${bus.id} (Route ${bus.route})`);
+            busMarkers[bus.id] = { marker: marker, path: bus.path, currentIndex: 0, timings: bus.timings };
+        });
+
+        // Function to move the bus markers
+        function moveBuses() {
+            if (selectedBusId) {
+                let bus = busMarkers[selectedBusId];
+                if (bus.currentIndex < bus.path.length - 1) {
+                    bus.currentIndex++;
+                    bus.marker.setLatLng([bus.path[bus.currentIndex].lat, bus.path[bus.currentIndex].lon]);
+                } else {
+                    // Reset to the start of the path
+                    bus.currentIndex = 0;
+                    bus.marker.setLatLng([bus.path[bus.currentIndex].lat, bus.path[bus.currentIndex].lon]);
+                }
+            }
+        }
+
+        // Call moveBuses every second
+        setInterval(moveBuses, 1000);
+
+        function findNearestStop() {
+            var userLocation = document.getElementById("user-location").value;
+            if (!userLocation) {
+                alert("Please enter your location.");
+                return;
+            }
+
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${userLocation}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        alert("Location not found.");
+                        return;
+                    }
+                    var userLatLng = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+                    let nearestStop = null;
+                    let minDistance = Infinity;
+
+                    stops.forEach(stop => {
+                        let distance = Math.hypot(userLatLng.lat - stop.lat, userLatLng.lon - stop.lon);
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            nearestStop = stop;
+                        }
+                    });
+
+                    if (nearestStop) {
+                        document.getElementById("nearest-stops").innerHTML = `Nearest stop: <b>${nearestStop.name}</b>`;
+                        document.getElementById("nearest-stops").style.display = "block";
+                        map.setView([nearestStop.lat, nearestStop.lon], 15);
+                    }
+                })
+                .catch(error => console.error('Error fetching location:', error));
+        }
+
+        function fetchBusData() {
+            let busListDiv = document.getElementById("bus-list");
+            let busSelect = document.getElementById("bus-select");
+            let busSelectContainer = document.getElementById("bus-select-container");
+
+            busListDiv.innerHTML = "<b>Available Buses:</b><br>";
+            busSelect.innerHTML = "<option value=''>Select a Bus</option>";
+
+            const currentTime = new Date();
+            const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+            const tenMinutesLater = currentMinutes + 10;
+
+            busData.forEach(bus => {
+                bus.timings.forEach(timing => {
+                    const [hour, minute] = timing.split(':').map(Number);
+                    const busTimeInMinutes = hour * 60 + minute;
+
+                    if (busTimeInMinutes >= currentMinutes && busTimeInMinutes <= tenMinutesLater) {
+                        let busInfo = `Bus ${bus.id} (Route ${bus.route}) at ${timing}`;
+                        busListDiv.innerHTML += `<div class="bus-info">${busInfo}</div>`;
+
+                        let option = document.createElement("option");
+                        option.value = bus.id;
+                        option.textContent = busInfo;
+                        busSelect.appendChild(option);
+                    }
+                });
