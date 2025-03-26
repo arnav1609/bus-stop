@@ -29,30 +29,34 @@ def download_map_image(latitude, longitude, filename="map.png"):
         print("Error: Could not download map image.")
         return None
 
+
+def generate_static_map(latitude, longitude):
+    """Generate a static OpenStreetMap image link."""
+    return f"https://static-maps.yandex.ru/1.x/?ll={longitude},{latitude}&z=15&size=450,300&l=map&pt={longitude},{latitude},pm2rdm"
+
+
 def send_email(bus_no, latitude, longitude):
     try:
         yag = yagmail.SMTP("jason.dsouza.here@gmail.com", ACCIDENT_EMAIL)
         receiver_email = ["Kkalash.bheda@gmail.com", "arnavbhandari1609@gmail.com"]
 
-        # Download and attach the map image
-        map_image = download_map_image(latitude, longitude)
+        maps_url = f"https://www.openstreetmap.org/?mlat={latitude}&mlon={longitude}#map=15/{latitude}/{longitude}"
+        static_map_url = generate_static_map(latitude, longitude)
 
         email_content = f"""
             <h3>🚨 Accident Alert 🚨</h3>
             <p><strong>Bus No:</strong> {bus_no}</p>
             <p><strong>Location:</strong> Latitude {latitude}, Longitude {longitude}</p>
-            <p><strong>View on OpenStreetMap:</strong> <a href="https://www.openstreetmap.org/?mlat={latitude}&mlon={longitude}#map=15/{latitude}/{longitude}">Click Here</a></p>
+            <p><strong>View on OpenStreetMap:</strong> <a href="{maps_url}">Click Here</a></p>
             <p><strong>Location Map:</strong></p>
-            <img src="cid:map_image" alt="Accident Location" style="width:100%; max-width:450px;">
+            <img src="{static_map_url}" alt="Accident Location" style="width:100%; max-width:450px;">
         """
 
-        # Send email with the map image as an attachment
         yag.send(
             to=receiver_email,
             subject="🚨 Accident Alert - Immediate Attention Required",
-            contents=[email_content, yagmail.inline(map_image)] if map_image else email_content
+            contents=email_content
         )
-
         print("Email sent!")
         return True
     except Exception as e:
