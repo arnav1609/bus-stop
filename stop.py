@@ -2,11 +2,17 @@ import yagmail
 from flask import Flask, jsonify, render_template, request
 import random
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+import os
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
+load_dotenv()
+
+AUTHORITY_EMAIL = os.getenv("AUTHORITY_EMAIL")
+
 # Email Configuration
-yag = yagmail.SMTP("bhandariarnav06@gmail.com", "qkrc uqjv oygu eqqz")
+yag = yagmail.SMTP("bhandariarnav06@gmail.com", AUTHORITY_EMAIL)
 
 # Bus Stops
 bus_stops = [
